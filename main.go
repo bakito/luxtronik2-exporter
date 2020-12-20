@@ -1,35 +1,18 @@
 package main
 
 import (
-	"encoding/json"
-	"net/http"
-	"regexp"
-	"strconv"
-
 	"github.com/fatih/structs"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"net/http"
+	"regexp"
 
 	"github.com/sh0rez/luxtronik2-exporter/pkg/luxtronik"
 )
 
 // Version of the app. To be set by ldflags
 var Version = "dev"
-
-// metrics
-var (
-	gauges = make(map[string]*prometheus.GaugeVec)
-
-	lastUpdate = promauto.NewGauge(prometheus.GaugeOpts{
-		Name:      "last_update",
-		Namespace: "luxtronik",
-		Help:      "UNIX timestamp of the last time an update was received from the heatpump",
-	})
-)
 
 // Config holds the configuration structure
 type Config struct {
@@ -101,80 +84,11 @@ func run(config *Config) {
 	// connect to the heatpump
 	lux := luxtronik.Connect(config.Address, config.Filters)
 
-	// create gauge metric for each domain
-	for name := range lux.Domains() {
-		gauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: "luxtronik",
-			Name:      name,
-		},
-			[]string{
-				"attr",
-			},
-		)
-		prometheus.MustRegister(gauge)
-		gauges[name] = gauge
-	}
-
 	// register update handler, gets called by the update routine
 	// updates changed metrics
 	lux.OnUpdate = func(new []luxtronik.Location) {
-		for _, loc := range new {
-			domain := loc.Domain
-			field := loc.Field
-			value := lux.Value(domain, field)
-
-			setMetric(domain, field, value)
-		}
-
-		lastUpdate.SetToCurrentTime()
-	}
-
-	// expose all known values as metric
-	for domainName, domains := range lux.Domains() {
-		for field, value := range domains.M {
-			setMetric(domainName, field, value.Value)
-		}
 	}
 
 	// serve the /metrics endpoint
-	http.Handle("/metrics", promhttp.Handler())
 	log.Fatalln(http.ListenAndServe(":2112", nil))
-}
-
-// jsonMetric represents the json-representation of a metric, created by the filter rules
-type jsonMetric struct {
-	Unit  string `json:"unit"`
-	Value string `json:"value"`
-}
-
-// setMetric updates sets the gauge of a metric to a value
-func setMetric(domain, field, value string) {
-	gauge := gauges[domain]
-
-	var jv jsonMetric
-	err := json.Unmarshal([]byte(value), &jv)
-
-	v, err := strconv.ParseFloat(jv.Value, 64)
-	if err != nil {
-		if !mutes.muted(domain, field) {
-			log.WithFields(
-				log.Fields{
-					"domain": domain,
-					"field":  field,
-					"value":  value,
-				}).Warn("metric value parse failure")
-		}
-		return
-	}
-
-	id := field
-	if jv.Unit != "" {
-		id = id + "_" + jv.Unit
-	}
-
-	gauge.WithLabelValues(id).Set(v)
-	log.WithFields(log.Fields{
-		"id":    id,
-		"value": v,
-	}).Debug("updated metric")
 }

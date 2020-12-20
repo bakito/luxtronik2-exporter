@@ -14,18 +14,21 @@ import (
 
 // Luxtronik XML types
 // Those represent the way luxtronik returns the data. Only used for parsing.
+
 type content struct {
-	Text       string     `xml:",chardata"`
-	ID         string     `xml:"id,attr"`
-	Name       string     `xml:"name"`
-	Categories []category `xml:"item"`
+	Text    string   `xml:",chardata"`
+	ID      string   `xml:"id,attr"`
+	Name    string   `xml:"name"`
+	Values  []values `xml:"item"`
 }
-type category struct {
-	ID    string `xml:"id,attr"`
-	Name  string `xml:"name"`
-	Items []item `xml:"item"`
-	Value string `xml:"value"`
+
+type values struct {
+	ID      string   `xml:"id,attr"`
+	Name    string   `xml:"name"`
+	Items   []item   `xml:"item"`
+	Value   string   `xml:"value"`
 }
+
 type item struct {
 	ID    string `xml:"id,attr"`
 	Name  string `xml:"name"`
@@ -71,7 +74,7 @@ func parseStructure(response string, filters Filters) (data map[string]Values, i
 	// Maps luxtronik ID's to the actual Location in the data map. This represents luxtroniks way of storing the data.
 	idRef = make(map[string]Location)
 
-	for _, cat := range structure.Categories {
+	for _, cat := range structure.Values {
 		data[slug.MakeLang(strings.ToLower(cat.Name), "de")] = Values{ID: cat.ID, M: make(map[string]Value)}
 		for _, i := range cat.Items {
 			loc, val := filters.filter(cat.Name, i.Name, i.Value)

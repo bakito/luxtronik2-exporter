@@ -75,24 +75,16 @@ func Connect(ip string, filters Filters) *Luxtronik {
 
 	// register update func
 	lux.socket.OnTextMessage = func(message string, socket gowebsocket.Socket) {
-		var updatedVals content
+		var updatedVals values
 		err := xml.Unmarshal([]byte(message), &updatedVals)
 		if err != nil {
 			panic(err)
 		}
 
-		var items []item
-		for _, c := range updatedVals.Categories {
-			items = append(items, c.Items...)
-		}
-
-		//	lux.socket.SendText("GET;"+)
-
-		updated := lux.update(items, filters)
+		updated := lux.update(updatedVals.Items, filters)
 
 		lux.OnUpdate(updated)
 	}
-	lux.socket.SendText("GET;" + lux.data["fehlerspeicher"].ID)
 
 	go func() {
 		for {
@@ -120,7 +112,7 @@ func login(c *chan string, socket *gowebsocket.Socket) string {
 	}
 
 	// return arbitrary hex-id where the metrics are located. This ID changes between requests. (!?)
-	return structure.Categories[0].ID
+	return structure.Values[0].ID
 }
 
 // update handles subsequent (non-inital) received data
