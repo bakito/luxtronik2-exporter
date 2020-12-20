@@ -13,7 +13,7 @@ import (
 // the appliance, but also the things required to interact with it (websocket, etc.).
 type Luxtronik struct {
 	idRef  map[string]Location
-	data   map[string]map[string]string
+	data   map[string]Values
 	socket gowebsocket.Socket
 	c      chan string
 
@@ -21,13 +21,23 @@ type Luxtronik struct {
 	OnUpdate func(new []Location)
 }
 
+type Values struct {
+	ID string
+	M  map[string]Value
+}
+
+type Value struct {
+	ID    string
+	Value string
+}
+
 // Value returns the value of a domain.key
 func (l *Luxtronik) Value(domain, key string) string {
-	return l.data[strings.ToLower(domain)][strings.ToLower(key)]
+	return l.data[strings.ToLower(domain)].M[strings.ToLower(key)].Value
 }
 
 // Domains return all available domains
-func (l *Luxtronik) Domains() map[string]map[string]string {
+func (l *Luxtronik) Domains() map[string]Values {
 	return l.data
 }
 
@@ -71,19 +81,23 @@ func Connect(ip string, filters Filters) *Luxtronik {
 			panic(err)
 		}
 
-		items := []item{}
+		var items []item
 		for _, c := range updatedVals.Categories {
 			items = append(items, c.Items...)
 		}
 
+		//	lux.socket.SendText("GET;"+)
+
 		updated := lux.update(items, filters)
+
 		lux.OnUpdate(updated)
 	}
+	lux.socket.SendText("GET;" + lux.data["fehlerspeicher"].ID)
 
 	go func() {
 		for {
 			lux.socket.SendText("REFRESH")
-			time.Sleep(time.Second)
+			time.Sleep(10 * time.Second)
 		}
 	}()
 
@@ -125,8 +139,11 @@ func (l *Luxtronik) update(new []item, filters Filters) []Location {
 		// apply filters
 		loc, val := filters.filter(domain, field, updated.Value)
 
-		if l.data[loc.Domain][loc.Field] != val {
-			l.data[loc.Domain][loc.Field] = val
+		if l.data[loc.Domain].M[loc.Field].Value != val {
+			l.data[loc.Domain].M[loc.Field] = Value{
+				ID:    updated.ID,
+				Value: val,
+			}
 			log.WithFields(log.Fields{
 				"domain": loc.Domain,
 				"field":  loc.Field,

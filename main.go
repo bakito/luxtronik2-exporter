@@ -131,8 +131,8 @@ func run(config *Config) {
 
 	// expose all known values as metric
 	for domainName, domains := range lux.Domains() {
-		for field, value := range domains {
-			setMetric(domainName, field, value)
+		for field, value := range domains.M {
+			setMetric(domainName, field, value.Value)
 		}
 	}
 

@@ -15,13 +15,16 @@ import (
 // Luxtronik XML types
 // Those represent the way luxtronik returns the data. Only used for parsing.
 type content struct {
+	Text       string     `xml:",chardata"`
 	ID         string     `xml:"id,attr"`
+	Name       string     `xml:"name"`
 	Categories []category `xml:"item"`
 }
 type category struct {
 	ID    string `xml:"id,attr"`
 	Name  string `xml:"name"`
 	Items []item `xml:"item"`
+	Value string `xml:"value"`
 }
 type item struct {
 	ID    string `xml:"id,attr"`
@@ -55,7 +58,7 @@ type Filters []struct {
 // Luxtronik uses a flat key-value store. This is hard to use and requires processing on every query.
 // Instead, we go with a two-dimensional map containing the data in the way it would be queried and maintain
 // a mapping of luxtronik's ID's to the place where we put the data.
-func parseStructure(response string, filters Filters) (data map[string]map[string]string, idRef map[string]Location) {
+func parseStructure(response string, filters Filters) (data map[string]Values, idRef map[string]Location) {
 	var structure content
 	err := xml.Unmarshal([]byte(response), &structure)
 	if err != nil {
@@ -63,18 +66,18 @@ func parseStructure(response string, filters Filters) (data map[string]map[strin
 	}
 
 	// Stores the data sorted in Domain and Field
-	data = make(map[string]map[string]string)
+	data = make(map[string]Values)
 
 	// Maps luxtronik ID's to the actual Location in the data map. This represents luxtroniks way of storing the data.
 	idRef = make(map[string]Location)
 
 	for _, cat := range structure.Categories {
-		data[slug.MakeLang(strings.ToLower(cat.Name), "de")] = make(map[string]string)
+		data[slug.MakeLang(strings.ToLower(cat.Name), "de")] = Values{ID: cat.ID, M: make(map[string]Value)}
 		for _, i := range cat.Items {
 			loc, val := filters.filter(cat.Name, i.Name, i.Value)
 
 			// Store the data Domain-Field based
-			data[loc.Domain][loc.Field] = val
+			data[loc.Domain].M[loc.Field] = Value{ID: i.ID, Value: val}
 
 			// Store references where we put the data for easier updating
 			log.WithFields(log.Fields{

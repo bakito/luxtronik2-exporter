@@ -1,4 +1,4 @@
-address: 172.21.20.103
+address: wp.home.net
 verbose: false
 mutes:
   - domain: "ablaufzeiten"
